@@ -1,7 +1,6 @@
 # SPDX-License-Identifer: MIT
 
 tests_to_pass = [
-    'init',
     'whitespace',
     'empty_array',
     'empty_object',
@@ -16,20 +15,21 @@ tests_to_pass = [
     'populated_object',
     'complex',
     'bytewise',
+    'whitespace2',
 ]
 
 tests_to_fail = [
 ]
 
 foreach name : tests_to_pass
-    exe = executable(name, f'@name@.c',
+    exe = executable(name, f'@name@_test.c',
         dependencies: [sjp_dep],
     )
     test(name, exe, should_fail: false)
 endforeach
 
 foreach name : tests_to_fail
-    exe = executable(name, f'@name@.c',
+    exe = executable(name, f'@name@_test.c',
         dependencies: [sjp_dep],
     )
     test(name, exe, should_fail: true)

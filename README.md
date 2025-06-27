@@ -51,9 +51,9 @@ types, values 0 thru 7:
 There is a mask, `SJP_TYPE` to remove the flags so you can test the data
 element type separately. These are the user flags:
 
+  * `SJP_KEY`: String is an object key
   * `SJP_START`: Begining of type
   * `SJP_END`: End of type
-  * `SJP_KEY`: String is an object key
 
 There are a couple of other flags, but they are used internally for parsing
 state. There are also a couple of masks, one for data element type, `SJP_TYPE`
