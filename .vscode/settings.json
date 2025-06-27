@@ -1,0 +1,9 @@
+{
+    "C_Cpp.default.compileCommands": "/home/jkent/Desktop/sjp/builddir/compile_commands.json",
+    "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild",
+    "files.associations": {
+        "types.h": "c",
+        "string.h": "c",
+        "ctype.h": "c"
+    }
+}
