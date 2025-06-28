@@ -1,6 +1,7 @@
 // SPDX-License-Identifer: MIT
 
 #include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,8 +24,6 @@ struct sjp {
     };
 
     /// private members
-    unsigned int temp_bytes;
-    char temp[8];
     unsigned int buflen;
     char buf[SJP_BUF_SIZE];
 };
@@ -53,219 +52,72 @@ void sjp_reset(sjp_t *sjp)
     sjp->cb = cb_temp;
 }
 
-static inline int sjp_utf8_cp_size(char c)
+static inline int num_cp_bytes(char c)
 {
-    if ((c & 0x80) == 0x00) {        /* 1-c ASCII */
+    if ((c & 0x80) == 0x00) {           /* 1-byte ASCII */
         return 1;
-    } else if ((c & 0xC0) == 0x80) { /* Continuation */
+    } else if ((c & 0xC0) == 0x80) {    /* Continuation */
         return 0;
-    } else if ((c & 0xE0) == 0xC0) { /* 2-c */
+    } else if ((c & 0xE0) == 0xC0) {    /* 2-byte */
         return 2;
-    } else if ((c & 0xF0) == 0xE0) { /* 3-c */
+    } else if ((c & 0xF0) == 0xE0) {    /* 3-byte */
         return 3;
-    } else if ((c & 0xF8) == 0xF0) { /* 4-c */
+    } else if ((c & 0xF8) == 0xF0) {    /* 4-byte */
         return 4;
     }
     return -1;
 }
 
-static inline int parse_string_byte(sjp_t *sjp, char c)
+static inline void call_cb(sjp_t *sjp)
 {
-    sjp_item_t *item = &sjp->stk[sjp->d];
-
-    if (sjp->temp_bytes == 0) {
-        if (c == '\\') {
-            sjp->temp[sjp->temp_bytes++] = c;
-            return 0;
-        } else if (c == '\"') {
-            item->t |= SJP_END;
-            sjp->str = sjp->buf;
-            sjp->str_bytes = sjp->buflen;
-            return 1;
-        } else {
-            int len = sjp_utf8_cp_size(c);
-            if (len <= 0) { /* invalid UTF8 */
-                return -1;
-            }
-            if (SJP_BUF_SIZE - sjp->buflen < len) { /* make room for cp */
-                sjp->str = sjp->buf;
-                sjp->str_bytes = sjp->buflen;
-                return 2;
-            }
-            if (len == 1) { /* If ASCII, bypass stashing */
-                sjp->buf[sjp->buflen++] = c;
-            } else { /* If cp with 2 or more bytes, stash first c */
-                sjp->temp[sjp->temp_bytes++] = c;
-            }
-            return 0;
-        }
-    } else {
-        int len = sjp_utf8_cp_size(sjp->temp[0]);
-        if (len == 1) { /* if ASCII, must be escape */
-            if (sjp->temp_bytes == 1) {
-                if (SJP_BUF_SIZE - sjp->buflen < 1) {
-                    sjp->str = sjp->buf;
-                    sjp->str_bytes = sjp->buflen;
-                    return 2;
-                }
-                switch (c) {
-                case '\"':
-                case '\\':
-                case '/':
-                    sjp->buf[sjp->buflen++] = c;
-                    break;
-                case 'b':
-                    sjp->buf[sjp->buflen++] = '\b';
-                    break;
-                case 'f':
-                    sjp->buf[sjp->buflen++] = '\f';
-                    break;
-                case 'n':
-                    sjp->buf[sjp->buflen++] = '\n';
-                    break;
-                case 'r':
-                    sjp->buf[sjp->buflen++] = '\r';
-                    break;
-                case 't':
-                    sjp->buf[sjp->buflen++] = '\t';
-                    break;
-                case 'u':
-                    sjp->temp[sjp->temp_bytes++] = c;
-                    return 0;
-                default:
-                    return -1;
-                }
-                sjp->temp_bytes = 0;
-                return 0;
-            } else if (sjp->temp_bytes < 5) {
-                sjp->temp[sjp->temp_bytes++] = c;
-                return 0;
-            } else {
-                sjp->temp[sjp->temp_bytes] = c;
-                unsigned int utf16 = strtol(&sjp->temp[2], NULL, 16);
-                if (utf16 < 128) {
-                    sjp->buf[sjp->buflen++] = utf16;
-                } else if (utf16 < 2048) {
-                    if (SJP_BUF_SIZE - sjp->buflen < 1) {
-                        sjp->str = sjp->buf;
-                        sjp->str_bytes = sjp->buflen;
-                        return 2;
-                    }
-                    sjp->buf[sjp->buflen++] = 0xc0 | (utf16 >> 6);
-                    sjp->buf[sjp->buflen++] = 0x80 | (utf16 & 0x3f);
-                } else {
-                    if (SJP_BUF_SIZE - sjp->buflen < 2) {
-                        sjp->str = sjp->buf;
-                        sjp->str_bytes = sjp->buflen;
-                        return 2;
-                    }
-                    sjp->buf[sjp->buflen++] = 0xe0 | (utf16 >> 12);
-                    sjp->buf[sjp->buflen++] = 0x80 | ((utf16 >> 6) & 0x3f);
-                    sjp->buf[sjp->buflen++] = 0x80 | (utf16 & 0x3f);
-                }
-                sjp->temp_bytes = 0;
-                return 0;
-            }
-        } else { /* must be a codepoint */
-            sjp->temp[sjp->temp_bytes++] = c;
-            if (len == sjp->temp_bytes) {
-                memcpy(&sjp->buf[sjp->buflen], sjp->temp, len);
-                sjp->temp_bytes = 0;
-            }
-            return 0;
-        }
-    }
-    return -1;
+    sjp->cb(sjp);
+    sjp->stk[sjp->d].t &= ~SJP_START;
+    sjp->buflen = 0;
+    sjp->str_bytes = 0;
 }
 
-static inline int parse_number_byte(sjp_t *sjp, char c)
-{
-    if (sjp->buflen >= SJP_BUF_SIZE - 1) {
-        return -1;
-    }
-
-    if (isdigit(c) || c == '.' || c == '+' || c == '-' || c == 'E' || c == 'e') {
-        sjp->buf[sjp->buflen++] = c;
-        return 0;
-    }
-
-    sjp->buf[sjp->buflen++] = '\0';
-    sjp->num = strtod(sjp->buf, NULL);
-    return 2;
-}
-
-static inline int parse_literal_byte(sjp_t *sjp, char c)
-{
-    sjp_item_t *item = &sjp->stk[sjp->d];
-
-    switch (item->t & SJP_TYPE) {
-    case SJP_TRUE_T:
-        switch (sjp->temp_bytes++) {
-        case 1: return (c == 'r') ? 0 : -1;
-        case 2: return (c == 'u') ? 0 : -1;
-        case 3: return (c == 'e') ? 1 : -1;
-        default: return -1;
-        }
-
-    case SJP_FALSE_T:
-        switch (sjp->temp_bytes++) {
-        case 1: return (c == 'a') ? 0 : -1;
-        case 2: return (c == 'l') ? 0 : -1;
-        case 3: return (c == 's') ? 0 : -1;
-        case 4: return (c == 'e') ? 1 : -1;
-        default: return -1;
-        }
-
-    case SJP_NULL_T:
-        switch (sjp->temp_bytes++) {
-        case 1: return (c == 'u') ? 0 : -1;
-        case 2: return (c == 'l') ? 0 : -1;
-        case 3: return (c == 'l') ? 1 : -1;
-        default: return -1;
-        }
-    }
-    return -1;
-}
-
-static inline int parse_byte(sjp_t *sjp, char c)
+static inline int parse_none_bytes(sjp_t *sjp, const char **buf, unsigned int *len)
 {
     sjp_item_t *parent = &sjp->stk[sjp->d - 1];
     sjp_item_t *item = &sjp->stk[sjp->d];
-    sjp_item_t *child = &sjp->stk[sjp->d + 1];
+    const char *p;
 
-    switch (item->t & SJP_TYPE) {
-    case SJP_NONE_T:
+    if (*len == 0) {
+        return -1;
+    }
 
-        item->t &= ~SJP_END;
+    while (*len) {
+        (*len)--;
+        p = (*buf)++;
 
-        switch (c) {
+        switch (*p) {
         case ' ':
         case '\n':
         case '\r':
         case '\t':
-            return 0;
+            continue;
 
         case ',':
-            if (sjp->d != 0 && !(item->t & SJP_COMMA)) {
+            if (!(item->t & SJP_COMMA)) {
                 return -1;
             }
             if (sjp->d > 0 && (parent->t & SJP_TYPE) == SJP_OBJ_T) {
-                item->t = SJP_KEY;
-                return 0;
+                item->t = SJP_NONE_T | SJP_KEY;
+                continue;
             }
             item->t = SJP_NONE_T;
-            return 0;
+            continue;
 
         case ':':
             if (!(item->t & SJP_COLON)) {
                 return -1;
             }
             item->t = SJP_NONE_T;
-            return 0;
+            continue;
         }
 
         if (sjp->d > 0) {
-            switch (c) {
+            switch (*p) {
             case '}':
                 if ((parent->t & SJP_TYPE) != SJP_OBJ_T) {
                     return -1;
@@ -273,17 +125,31 @@ static inline int parse_byte(sjp_t *sjp, char c)
                 if (item->i != 0 && (item->t & SJP_KEY)) {
                     return -1;
                 }
-                parent->t = SJP_OBJ_T | SJP_END;
                 sjp->d--;
-                return 1;
+                parent = &sjp->stk[sjp->d - 1];
+                item = &sjp->stk[sjp->d];
+                item->t = SJP_OBJ_T | SJP_END;
+                call_cb(sjp);
+                if (item->t & SJP_KEY) {
+                    item->t = SJP_NONE_T | SJP_COLON;
+                } else {
+                    item->i++;
+                    item->t = SJP_NONE_T | SJP_COMMA;
+                }
+                continue;
 
             case ']':
                 if ((parent->t & SJP_TYPE) != SJP_ARRAY_T) {
                     return -1;
                 }
-                parent->t = SJP_ARRAY_T | SJP_END;
                 sjp->d--;
-                return 1;
+                parent = &sjp->stk[sjp->d - 1];
+                item = &sjp->stk[sjp->d];
+                item->t = SJP_ARRAY_T | SJP_END;
+                call_cb(sjp);
+                item->i++;
+                item->t = SJP_NONE_T | SJP_COMMA;
+                continue;
             }
         }
 
@@ -291,26 +157,35 @@ static inline int parse_byte(sjp_t *sjp, char c)
             return -1;
         }
 
-        if (!(item->t & SJP_KEY)) {
-            switch (c) {
-            case '{':
-                item->t = SJP_OBJ_T | SJP_START;
-                child->t = SJP_KEY;
-                child->i = 0;
-                return 1;
-            case '[':
-                item->t = SJP_ARRAY_T | SJP_START;
-                child->t = SJP_NONE_T;
-                child->i = 0;
-                return 1;
-            }
-        }
-
-        if (sjp->d == 0) {
+        if (sjp->d != 0 && item->t & SJP_COMMA) {
             return -1;
         }
 
-        if (c == '"') {
+        if (!(item->t & SJP_KEY)) {
+            switch (*p) {
+            case '{':
+                item->t = SJP_OBJ_T | SJP_START;
+                call_cb(sjp);
+                sjp->d++;
+                parent = &sjp->stk[sjp->d - 1];
+                item = &sjp->stk[sjp->d];
+                item->i = 0;
+                item->t = SJP_NONE_T | SJP_KEY;
+                continue;
+
+            case '[':
+                item->t = SJP_ARRAY_T | SJP_START;
+                call_cb(sjp);
+                sjp->d++;
+                parent = &sjp->stk[sjp->d - 1];
+                item = &sjp->stk[sjp->d];
+                item->i = 0;
+                item->t = SJP_NONE_T;
+                continue;
+            }
+        }
+
+        if (*p == '"') {
             item->t |= SJP_STR_T | SJP_START;
             return 0;
         }
@@ -319,77 +194,283 @@ static inline int parse_byte(sjp_t *sjp, char c)
             return -1;
         }
 
-        switch (c) {
+        switch (*p) {
         case '-':
         case '0' ... '9':
             item->t |= SJP_NUM_T | SJP_START | SJP_END;
-            sjp->buf[sjp->buflen++] = c;
+            sjp->buf[sjp->buflen++] = *p;
             return 0;
+
         case 't':
             item->t = SJP_TRUE_T | SJP_START | SJP_END;
-            sjp->temp_bytes++;
+            sjp->buflen++;
             return 0;
+
         case 'f':
             item->t = SJP_FALSE_T | SJP_START | SJP_END;
-            sjp->temp_bytes++;
+            sjp->buflen++;
             return 0;
+
         case 'n':
             item->t = SJP_NULL_T | SJP_START | SJP_END;
-            sjp->temp_bytes++;
+            sjp->buflen++;
             return 0;
         }
+
         return -1;
-
-    case SJP_STR_T:
-        return parse_string_byte(sjp, c);
-
-    case SJP_NUM_T:
-        return parse_number_byte(sjp, c);
-
-    case SJP_TRUE_T:
-    case SJP_FALSE_T:
-    case SJP_NULL_T:
-        return parse_literal_byte(sjp, c);
     }
+
+    return 0;
+}
+
+static inline int parse_string_bytes(sjp_t *sjp, const char **buf, unsigned int *len)
+{
+    const char *p;
+    unsigned int bytes;
+
+    while (*len) {
+        bytes = (*len)--;
+        p = (*buf)++;
+
+        if (sjp->buflen == 0) {
+            if (*p == '\\') {
+                if (sjp->str_bytes) {
+                    call_cb(sjp);
+                }
+                sjp->buf[sjp->buflen++] = *p;
+                continue;
+            } else if (*p == '\"') {
+                sjp->stk[sjp->d].t |= SJP_END;
+                call_cb(sjp);
+                if (sjp->stk[sjp->d].t & SJP_KEY) {
+                    sjp->stk[sjp->d].t = SJP_COLON;
+                } else {
+                    sjp->stk[sjp->d].i++;
+                    sjp->stk[sjp->d].t = SJP_COMMA;
+                }
+                return 0;
+            }
+
+            int cp_bytes = num_cp_bytes(*p);
+            if (cp_bytes <= 0) {
+                return -1;
+            }
+
+            if (bytes < cp_bytes) {
+                if (sjp->str_bytes) {
+                    call_cb(sjp);
+                }
+                sjp->buf[sjp->buflen++] = *p;
+                continue;
+            }
+            if (sjp->str_bytes++ == 0) {
+                sjp->str = p;
+            }
+            while (--cp_bytes) {
+                sjp->str_bytes++;
+                bytes = (*len)--;
+                p = (*buf)++;
+                if ((*p & 0xC0) != 0x80) {
+                    return -1;
+                }
+            }
+        } else {
+            int cp_bytes = num_cp_bytes(*sjp->buf);
+            if (cp_bytes == 1) { /* must be an escape sequence */
+                if (sjp->buflen == 1) {
+                    sjp->str = sjp->buf;
+                    sjp->str_bytes = 1;
+                    switch (*p) {
+                    case '\"':
+                    case '\\':
+                    case '/':
+                        *sjp->buf = *p;
+                        break;
+                    case 'b':
+                        *sjp->buf = '\b';
+                        break;
+                    case 'f':
+                        *sjp->buf = '\f';
+                        break;
+                    case 'n':
+                        *sjp->buf = '\n';
+                        break;
+                    case 'r':
+                        *sjp->buf = '\r';
+                        break;
+                    case 't':
+                        *sjp->buf = '\t';
+                        break;
+                    case 'u':
+                        sjp->buf[sjp->buflen++] = 'u';
+                        continue;
+                    default:
+                        return -1;
+                    }
+                } else if (sjp->buflen < 6) {
+                    if (!isxdigit(*p)) {
+                        return -1;
+                    }
+                    sjp->buf[sjp->buflen++] = *p;
+                    if (sjp->buflen < 6) {
+                        continue;
+                    }
+                    sjp->buf[sjp->buflen] = '\0';
+                    sjp->buflen = 0;
+                    unsigned int utf16 = strtol(&sjp->buf[2], NULL, 16);
+                    if (utf16 < 128) {
+                        sjp->buf[sjp->buflen] = utf16;
+                    } else if (utf16 < 2048) {
+                        sjp->str_bytes = 2;
+                        sjp->buf[sjp->buflen++] = 0xc0 | (utf16 >> 6);
+                        sjp->buf[sjp->buflen] = 0x80 | (utf16 & 0x3f);
+                    } else {
+                        sjp->str_bytes = 3;
+                        sjp->buf[sjp->buflen++] = 0xe0 | (utf16 >> 12);
+                        sjp->buf[sjp->buflen++] = 0x80 | ((utf16 >> 6) & 0x3f);
+                        sjp->buf[sjp->buflen] = 0x80 | (utf16 & 0x3f);
+                    }
+                }
+            } else {
+                if ((*p & 0xC0) != 0x80) {
+                    return -1;
+                }
+                sjp->buf[sjp->buflen++] = *p;
+                if (sjp->buflen < cp_bytes) {
+                    continue;
+                }
+
+                sjp->str = sjp->buf;
+                sjp->str_bytes = sjp->buflen;
+            }
+
+            if (sjp->str_bytes) {
+                call_cb(sjp);
+            }
+        }
+    }
+
+    return 0;
+}
+
+static inline int parse_number_bytes(sjp_t *sjp, const char **buf, unsigned int *len)
+{
+    const char *p;
+
+    while (*len) {
+        if (sjp->buflen >= SJP_BUF_SIZE - 2) {
+            return -1;
+        }
+
+        (*len)--;
+        p = (*buf)++;
+
+        if (isdigit(*p) || *p == '.' || *p == '+' || *p == '-' || *p == 'E' || *p == 'e') {
+            sjp->buf[sjp->buflen++] = *p;
+            continue;
+        }
+
+        sjp->buf[sjp->buflen] = '\0';
+        (*len)++;
+        (*buf)--;
+        sjp->num = strtod(sjp->buf, NULL);
+        call_cb(sjp);
+        sjp->stk[sjp->d].i++;
+        sjp->stk[sjp->d].t = SJP_COMMA;
+        break;
+    }
+
+    return 0;
+}
+
+static inline int parse_true_bytes(sjp_t *sjp, const char **buf, unsigned int *len)
+{
+    const char *p;
+
+    while (*len) {
+        (*len)--;
+        p = (*buf)++;
+        switch (sjp->buflen++) {
+        case 1: if (*p != 'r') return -1; continue;
+        case 2: if (*p != 'u') return -1; continue;
+        case 3: if (*p != 'e') return -1;
+        }
+
+        call_cb(sjp);
+        sjp->stk[sjp->d].i++;
+        sjp->stk[sjp->d].t = SJP_COMMA;
+        break;
+    }
+
+    return 0;
+}
+
+static inline int parse_false_bytes(sjp_t *sjp, const char **buf, unsigned int *len)
+{
+    const char *p;
+
+    while (*len) {
+        (*len)--;
+        p = (*buf)++;
+        switch (sjp->buflen++) {
+        case 1: if (*p != 'a') return -1; continue;
+        case 2: if (*p != 'l') return -1; continue;
+        case 3: if (*p != 's') return -1; continue;
+        case 4: if (*p != 'e') return -1;
+        }
+
+        call_cb(sjp);
+        sjp->stk[sjp->d].i++;
+        sjp->stk[sjp->d].t = SJP_COMMA;
+        break;
+    }
+
+    return 0;
+}
+
+static inline int parse_null_bytes(sjp_t *sjp, const char **buf, unsigned int *len)
+{
+    const char *p;
+
+    while (*len) {
+        (*len)--;
+        p = (*buf)++;
+        switch (sjp->buflen++) {
+        case 1: if (*p != 'u') return -1; continue;
+        case 2: if (*p != 'l') return -1; continue;
+        case 3: if (*p != 'l') return -1;
+        }
+
+        call_cb(sjp);
+        sjp->stk[sjp->d].i++;
+        sjp->stk[sjp->d].t = SJP_COMMA;
+        break;
+    }
+
+    return 0;
+}
+
+static inline int parse_bytes(sjp_t *sjp, const char **buf, unsigned int *len)
+{
+    switch (sjp->stk[sjp->d].t & SJP_TYPE) {
+    case SJP_NONE_T: return parse_none_bytes(sjp, buf, len);
+    case SJP_STR_T: return parse_string_bytes(sjp, buf, len);
+    case SJP_NUM_T: return parse_number_bytes(sjp, buf, len);
+    case SJP_TRUE_T: return parse_true_bytes(sjp, buf, len);
+    case SJP_FALSE_T: return parse_false_bytes(sjp, buf, len);
+    case SJP_NULL_T: return parse_null_bytes(sjp, buf, len);
+    }
+
     return -1;
 }
 
 int sjp_parse(sjp_t *sjp, const char *buf, unsigned int len)
 {
-    const char *p = buf;
-
-    while (p < buf + len) {
-        char c = *p++;
-        int ret = parse_byte(sjp, c);
-        if (ret < 0) {
+    while (len) {
+        if (parse_bytes(sjp, &buf, &len) < 0) {
             return -1;
-        }
-        if (ret > 0) {
-            sjp_item_t *item = &sjp->stk[sjp->d];
-
-            sjp->cb(sjp);
-            if (c == '{' || c == '[') {
-                sjp->d++;
-                continue;
-            }
-
-            sjp->buflen = 0;
-            sjp->temp_bytes = 0;
-            item->t &= ~SJP_START;
-            if (item->t & SJP_END) {
-                sjp->stk[sjp->d].t &= ~SJP_TYPE;
-                if (item->t & SJP_KEY) {
-                    item->t = SJP_COLON;
-                } else {
-                    item->t = SJP_COMMA;
-                    item->i++;
-                }
-            }
-        }
-        if (ret > 1) {
-            p--;
         }
     }
 
-    return p - buf;
+    return 0;
 }

@@ -7,12 +7,7 @@ complete JSON documents or even multiple documents.
 
 A callback system is employed -- the start, continuation, or end of a data
 element is detected, the callback is triggered with information about the
-event. A stack is also used to keep track of array and object nesting. A bounce
-buffer is used for strings so they can be composed in memory from escape
-sequences and so incomplete utf8 codepoints will not be returned. The bounce
-buffer may be removed in a future version and instead pass data through
-directly. This would improve efficiency for non-escaped utf8 strings by
-removing a copy operation.
+event. A stack is also used to keep track of array and object nesting.
 
 ## Functional description
 

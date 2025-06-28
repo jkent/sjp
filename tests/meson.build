@@ -19,18 +19,21 @@ tests_to_pass = [
 ]
 
 tests_to_fail = [
+    'array_missing_comma',
+    'object_missing_comma',
+    'object_missing_colon',
 ]
 
 foreach name : tests_to_pass
-    exe = executable(name, f'@name@_test.c',
+    exe = executable(name, f'pass_@name@_test.c',
         dependencies: [sjp_dep],
     )
-    test(name, exe, should_fail: false)
+    test(f'pass_@name@', exe, should_fail: false)
 endforeach
 
 foreach name : tests_to_fail
-    exe = executable(name, f'@name@_test.c',
+    exe = executable(name, f'fail_@name@_test.c',
         dependencies: [sjp_dep],
     )
-    test(name, exe, should_fail: true)
+    test(f'fail_@name@', exe, should_fail: true)
 endforeach

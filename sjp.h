@@ -8,7 +8,7 @@
 #endif
 
 #ifndef SJP_BUF_SIZE
-# define SJP_BUF_SIZE 32
+# define SJP_BUF_SIZE 24
 #endif
 
 typedef enum sjp_token sjp_token_t;

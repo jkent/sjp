@@ -2,10 +2,11 @@
 
 #include <assert.h>
 
-#include "main_bytewise.c"
+#define CHUNKSIZE 1
+#include "main.c"
 
 
-static const char *document = "{\"array\":[1,true,\"string\"],\"object\":{\"key\":\"value\"},\"sentence\":\"The quick brown fox jumped over the lazy dog.\"}";
+static const char *document = "{\"array\":[1,true,\"string\"],\"object\":{\"key\":\"value\"},\"sentence\":\"The quick brown fox jumped over the lazy dog.\",\"emoji\":\"👍\"}";
 static const string_t strings[] = {
     {"array", 5},
     {"string", 6},
@@ -14,6 +15,8 @@ static const string_t strings[] = {
     {"value", 5},
     {"sentence", 8},
     {"The quick brown fox jumped over the lazy dog.", 45},
+    {"emoji", 5},
+    {"👍", 4},
     {NULL}
 };
 
@@ -83,6 +86,14 @@ static void cb(sjp_t *sjp)
         break;
 
     case 14:
+        ASSERT_STR_KEY(1, 3);
+        break;
+
+    case 15:
+        ASSERT_STR_VALUE(1, 3);
+        break;
+
+    case 16:
         ASSERT_OBJ_END(0, 0);
         break;
 
