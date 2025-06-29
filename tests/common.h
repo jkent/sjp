@@ -11,11 +11,15 @@ typedef struct string {
 } string_t;
 
 static const char *document;
-static const string_t strings[];
 static void cb(sjp_t *sjp);
 
-#define DEBUG_CB() fprintf(stderr, "n=%u d=%u stk[d].t=%u stk[d].i=%u\n", n, \
-        sjp->d, sjp->stk[sjp->d].t, sjp->stk[sjp->d].i)
+#define DEBUG_SWITCH \
+    static unsigned int n = 0; \
+    static unsigned int pos = 0; \
+    (void) pos; \
+    fprintf(stderr, "n=%u d=%u stk[d].t=%u stk[d].i=%u\n", n, \
+        sjp->d, sjp->stk[sjp->d].t, sjp->stk[sjp->d].i); \
+    switch (n++)
 
 #define ASSERT_OBJ_START(depth, idx) ({ \
     assert(sjp->d == depth); \
@@ -45,34 +49,34 @@ static void cb(sjp_t *sjp);
     assert((sjp->stk[sjp->d].t & SJP_FLAGS) == SJP_END); \
 })
 
-#define ASSERT_STR() ({ \
+#define ASSERT_STR(s) ({ \
     assert((sjp->stk[sjp->d].t & SJP_TYPE) == SJP_STR_T); \
-    if (str_pos == 0) { \
+    if (pos == 0) { \
         assert(sjp->stk[sjp->d].t & SJP_START); \
     } \
-    assert(str_pos + sjp->str_bytes <= strings[str_idx].len); \
-    assert(memcmp(sjp->str, &strings[str_idx].str[str_pos], sjp->str_bytes) == 0); \
-    str_pos += sjp->str_bytes; \
+    assert(pos + sjp->str_bytes <= sizeof(s) - 1); \
+    assert(memcmp(sjp->str, &s[pos], sjp->str_bytes) == 0); \
+    pos += sjp->str_bytes; \
     if (sjp->stk[sjp->d].t & SJP_END) { \
-        assert(str_pos == strings[str_idx++].len); \
-        str_pos = 0; \
+        assert(pos == sizeof(s) - 1); \
+        pos = 0; \
     } else { \
         n -= 1; \
     } \
 })
 
-#define ASSERT_STR_KEY(depth, idx) ({ \
+#define ASSERT_STR_KEY(depth, idx, s) ({ \
     assert(sjp->d == depth); \
     assert(sjp->stk[sjp->d].i == idx); \
     assert(sjp->stk[sjp->d].t & SJP_KEY); \
-    ASSERT_STR(); \
+    ASSERT_STR(s); \
 })
 
-#define ASSERT_STR_VALUE(depth, idx) ({ \
+#define ASSERT_STR_VALUE(depth, idx, s) ({ \
     assert(sjp->d == depth); \
     assert(sjp->stk[sjp->d].i == idx); \
     assert((sjp->stk[sjp->d].t & SJP_KEY) != SJP_KEY); \
-    ASSERT_STR(); \
+    ASSERT_STR(s); \
 })
 
 #define ASSERT_NUM(depth, idx, value) ({ \

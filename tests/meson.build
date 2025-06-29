@@ -2,26 +2,32 @@
 
 tests_to_pass = [
     'whitespace',
-    'empty_array',
-    'empty_object',
-    'empty_string',
-    'multiple_top',
-    'nested_array',
-    'nested_object',
-    'literal_array',
-    'number_array',
-    'escape_string',
-    'long_string',
-    'populated_object',
-    'complex',
-    'bytewise',
     'whitespace2',
+    'object_empty',
+    'object_nested',
+    'object_populated',
+    'object_complex',
+    'object_complex_byte',
+    'array_empty',
+    'array_nested',
+    'array_numbers',
+    'array_literals',
+    'string_empty',
+    'string_escape',
+    'string_long',
+    'literal_true',
+    'literal_false',
+    'literal_null',
+    'multiple_documents',
 ]
 
 tests_to_fail = [
-    'array_missing_comma',
+    'object_trailing_comma',
     'object_missing_comma',
     'object_missing_colon',
+    'object_missing_value',
+    'array_trailing_comma',
+    'array_missing_comma',
 ]
 
 foreach name : tests_to_pass

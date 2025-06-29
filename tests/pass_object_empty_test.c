@@ -6,17 +6,10 @@
 
 
 static const char *document = "{}";
-static const string_t strings[] = {
-    {NULL},
-};
 
 static void cb(sjp_t *sjp)
 {
-    static unsigned int n = 0;
-
-    DEBUG_CB();
-
-    switch (n++) {
+    DEBUG_SWITCH {
     case 0:
         ASSERT_OBJ_START(0, 0);
         break;
@@ -27,6 +20,5 @@ static void cb(sjp_t *sjp)
 
     default:
         assert(0);
-        break;
     }
 }

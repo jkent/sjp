@@ -16,8 +16,6 @@ int main(int argc, char *argv[])
     int ret;
     sjp_t *sjp;
 
-    (void) strings;
-
     sjp = sjp_init(cb);
     assert(sjp != NULL);
 

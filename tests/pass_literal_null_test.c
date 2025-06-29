@@ -5,11 +5,10 @@
 #include "main.c"
 
 
-static const char *document = "[null null]";
+static const char *document = "[null]";
 
 static void cb(sjp_t *sjp)
 {
-
     DEBUG_SWITCH {
     case 0:
         ASSERT_ARRAY_START(0, 0);
@@ -20,10 +19,6 @@ static void cb(sjp_t *sjp)
         break;
 
     case 2:
-        ASSERT_NULL(1, 1);
-        break;
-
-    case 3:
         ASSERT_ARRAY_END(0, 0);
         break;
 

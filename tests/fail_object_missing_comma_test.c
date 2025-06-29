@@ -6,27 +6,16 @@
 
 
 static const char *document = "{\"a\":null \"b\":null}";
-static const string_t strings[] = {
-    {"a", 1},
-    {"b", 1},
-    {NULL},
-};
 
 static void cb(sjp_t *sjp)
 {
-    static unsigned int n = 0;
-    static unsigned int str_idx = 0;
-    static unsigned int str_pos = 0;
-
-    DEBUG_CB();
-
-    switch (n++) {
+    DEBUG_SWITCH {
     case 0:
         ASSERT_OBJ_START(0, 0);
         break;
 
     case 1:
-        ASSERT_STR_KEY(1, 0);
+        ASSERT_STR_KEY(1, 0, "a");
         break;
 
     case 2:
@@ -34,7 +23,7 @@ static void cb(sjp_t *sjp)
         break;
 
     case 3:
-        ASSERT_STR_KEY(1, 1);
+        ASSERT_STR_KEY(1, 1, "b");
         break;
 
     case 4:
@@ -47,6 +36,5 @@ static void cb(sjp_t *sjp)
 
     default:
         assert(0);
-        break;
     }
 }

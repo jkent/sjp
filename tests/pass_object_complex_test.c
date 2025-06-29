@@ -2,39 +2,20 @@
 
 #include <assert.h>
 
-#define CHUNKSIZE 1
 #include "main.c"
 
 
 static const char *document = "{\"array\":[1,true,\"string\"],\"object\":{\"key\":\"value\"},\"sentence\":\"The quick brown fox jumped over the lazy dog.\",\"emoji\":\"👍\"}";
-static const string_t strings[] = {
-    {"array", 5},
-    {"string", 6},
-    {"object", 6},
-    {"key", 3},
-    {"value", 5},
-    {"sentence", 8},
-    {"The quick brown fox jumped over the lazy dog.", 45},
-    {"emoji", 5},
-    {"👍", 4},
-    {NULL}
-};
 
 static void cb(sjp_t *sjp)
 {
-    static unsigned int n = 0;
-    static unsigned int str_idx = 0;
-    static unsigned int str_pos = 0;
-
-    DEBUG_CB();
-
-    switch (n++) {
+    DEBUG_SWITCH {
     case 0:
         ASSERT_OBJ_START(0, 0);
         break;
 
     case 1:
-        ASSERT_STR_KEY(1, 0);
+        ASSERT_STR_KEY(1, 0, "array");
         break;
 
     case 2:
@@ -50,7 +31,7 @@ static void cb(sjp_t *sjp)
         break;
 
     case 5:
-        ASSERT_STR_VALUE(2, 2);
+        ASSERT_STR_VALUE(2, 2, "string");
         break;
 
     case 6:
@@ -58,7 +39,7 @@ static void cb(sjp_t *sjp)
         break;
 
     case 7:
-        ASSERT_STR_KEY(1, 1);
+        ASSERT_STR_KEY(1, 1, "object");
         break;
 
     case 8:
@@ -66,11 +47,11 @@ static void cb(sjp_t *sjp)
         break;
 
     case 9:
-        ASSERT_STR_KEY(2, 0);
+        ASSERT_STR_KEY(2, 0, "key");
         break;
 
     case 10:
-        ASSERT_STR_VALUE(2, 0);
+        ASSERT_STR_VALUE(2, 0, "value");
         break;
 
     case 11:
@@ -78,19 +59,19 @@ static void cb(sjp_t *sjp)
         break;
 
     case 12:
-        ASSERT_STR_KEY(1, 2);
+        ASSERT_STR_KEY(1, 2, "sentence");
         break;
 
     case 13:
-        ASSERT_STR_VALUE(1, 2);
+        ASSERT_STR_VALUE(1, 2, "The quick brown fox jumped over the lazy dog.");
         break;
 
     case 14:
-        ASSERT_STR_KEY(1, 3);
+        ASSERT_STR_KEY(1, 3, "emoji");
         break;
 
     case 15:
-        ASSERT_STR_VALUE(1, 3);
+        ASSERT_STR_VALUE(1, 3, "👍");
         break;
 
     case 16:
@@ -99,6 +80,5 @@ static void cb(sjp_t *sjp)
 
     default:
         assert(0);
-        break;
     }
 }
