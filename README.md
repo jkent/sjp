@@ -1,9 +1,10 @@
 # About SJP
 
 SJP (Streaming JSON Parser) is a small, lightweight JSON parser that is
-designed for embedded use. It was designed to be paired with ACEWS for use with
-websockets. It can process chunks of data in any size, from bytes at a time to
-complete JSON documents or even multiple documents.
+designed for embedded use. It was designed to be paired with
+[ACEWS](https://github.com/jkent/acews) for use with websockets. It can process
+chunks of data in any size, from bytes at a time to complete JSON documents or
+even multiple documents.
 
 A callback system is employed -- the start, continuation, or end of a data
 element is detected, the callback is triggered with information about the
@@ -29,6 +30,7 @@ The `sjp` structure:
     * `t`: token
   * `str`: string value
   * `str_bytes`: string byte length
+  * `str_pos`: string bytes so far
   * `num`: number value
 
 Tokens are split up into two parts, the data element type, and flags. Data
@@ -60,7 +62,7 @@ what you should do within the callback.
 
 ## Example
 
-Take the following document for example.
+Take the following document for example:
 
 ```json
 {
@@ -70,7 +72,32 @@ Take the following document for example.
 }
 ```
 
-Parsing this doucment would result in 8 calls of the callback function:
+Here's an example of how you could process it:
+
+```c
+static void callback(sjp_t *sjp)
+{
+    user_t *user = sjp->user;
+
+    /* do something with sjp state */
+}
+
+static void process_document(const char *document, user_t *user)
+{
+    sjp_t *sjp = sjp_init(callback);
+    sjp->user = user;
+
+    if (sjp_parse(sjp, document, strlen(document)) < 0) {
+        fprintf(stderr, "error parsing document");
+        /* perform any necessary cleanup */
+    }
+
+    sjp_free(sjp);
+}
+```
+
+If you ran `process_document` with the above document, 8 calls to callback with
+the following values would occur:
 
 ```
 sjp->d == 0
@@ -136,3 +163,7 @@ sjp->stk[0].i == 0
 sjp->stk[0].t & SJP_TYPE == SJP_OBJ_T
 sjp->stk[0].t & SJP_FLAGS == SJP_END
 ```
+
+Note that strings can and will be split on a UTF-8 character boundary if a
+document is split up in chunks when being parsed. You can use `sjp->str_pos` to
+get the current byte position in the string.
