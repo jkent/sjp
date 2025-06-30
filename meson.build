@@ -1,6 +1,9 @@
 # SPDX-License-Identifer: MIT
 
-project('sjp', 'c')
+project('sjp', ['c'],
+    meson_version: '>=0.60.0',
+    version: files('version.txt'),
+)
 
 sjp_includes = include_directories('.')
 sjp_sources = []
