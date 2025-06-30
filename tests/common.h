@@ -15,8 +15,6 @@ static void cb(sjp_t *sjp);
 
 #define DEBUG_SWITCH \
     static unsigned int n = 0; \
-    static unsigned int pos = 0; \
-    (void) pos; \
     fprintf(stderr, "n=%u d=%u stk[d].t=%u stk[d].i=%u\n", n, \
         sjp->d, sjp->stk[sjp->d].t, sjp->stk[sjp->d].i); \
     switch (n++)
@@ -51,15 +49,13 @@ static void cb(sjp_t *sjp);
 
 #define ASSERT_STR(s) ({ \
     assert((sjp->stk[sjp->d].t & SJP_TYPE) == SJP_STR_T); \
-    if (pos == 0) { \
+    if (sjp->str_pos == 0) { \
         assert(sjp->stk[sjp->d].t & SJP_START); \
     } \
-    assert(pos + sjp->str_bytes <= sizeof(s) - 1); \
-    assert(memcmp(sjp->str, &s[pos], sjp->str_bytes) == 0); \
-    pos += sjp->str_bytes; \
+    assert(sjp->str_pos + sjp->str_bytes <= sizeof(s) - 1); \
+    assert(memcmp(sjp->str, &s[sjp->str_pos], sjp->str_bytes) == 0); \
     if (sjp->stk[sjp->d].t & SJP_END) { \
-        assert(pos == sizeof(s) - 1); \
-        pos = 0; \
+        assert(sjp->str_pos + sjp->str_bytes == sizeof(s) - 1); \
     } else { \
         n -= 1; \
     } \

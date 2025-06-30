@@ -19,6 +19,7 @@ struct sjp {
         struct {
             const char *str;
             unsigned int str_bytes;
+            unsigned int str_pos;
         };
         double num;
     };
@@ -72,6 +73,7 @@ static inline void call_cb(sjp_t *sjp)
 {
     sjp->cb(sjp);
     sjp->stk[sjp->d].t &= ~SJP_START;
+    sjp->str_pos += sjp->str_bytes;
     sjp->buflen = 0;
     sjp->str_bytes = 0;
 }
@@ -187,6 +189,7 @@ static inline int parse_none_bytes(sjp_t *sjp, const char **buf, unsigned int *l
 
         if (*p == '"') {
             item->t |= SJP_STR_T | SJP_START;
+            sjp->str_pos = 0;
             return 0;
         }
 

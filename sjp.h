@@ -50,6 +50,7 @@ struct sjp {
         struct {
             const char *str;
             unsigned int str_bytes;
+            unsigned int str_pos;
         };
         double num;
     };
